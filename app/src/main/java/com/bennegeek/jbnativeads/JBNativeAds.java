@@ -4,6 +4,7 @@ import android.content.Context;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
+import com.bennegeek.jbnativeads.JBAdsCache;
 import com.google.android.gms.ads.AdListener;
 import com.google.android.gms.ads.AdLoader;
 import com.google.android.gms.ads.AdRequest;
@@ -26,8 +27,8 @@ interface JBNativeAdListener {
 }
 
 public class JBNativeAds {
-    public static final long AdExpirationMillis = 60 * 60 * 1000; // 1 hour
-    public int maximumAdsCached = 4;
+    public int maximumAdsCached = 20;
+    public int keywordPrefetchCount = 3;
 
     private
     String mUnitId;
@@ -39,17 +40,17 @@ public class JBNativeAds {
     JBAdsCache mCache = new JBAdsCache(maximumAdsCached);
 
     // Gets a cached ad that has not expired yet
-    public void getAd(final JBNativeAdListener listener) {
-        NativeAd ad = mCache.pop();
+    public void getAd(final String keyword, final JBNativeAdListener listener) {
+        NativeAd ad = mCache.pop(keyword);
         if (ad != null) {
             listener.didGetAd(ad);
 
-            fillCache();
+            fillCache(keyword);
         } else {
-            loadAd(new JBNativeAdsLoaderListener() {
+            loadAd(keyword, new JBNativeAdsLoaderListener() {
                 @Override
                 public void didLoadAd(NativeAd ad) {
-                    getAd(listener);
+                    getAd(keyword,listener);
                 }
             });
         }
@@ -67,11 +68,10 @@ public class JBNativeAds {
                     }
                 })
                 .withNativeAdOptions(new NativeAdOptions.Builder()
+                        .setReturnUrlsForImageAssets(true)
                         // Methods in the NativeAdOptions.Builder class can be
                         // used here to specify individual options settings.
                         .build());
-
-        fillCache();
     }
 
     // Private Methods
@@ -80,91 +80,39 @@ public class JBNativeAds {
         void didLoadAd(NativeAd ad);
     }
 
-    private class JBAdsCache {
-        public int maximumAdsCached;
-
-        ArrayList<NativeAdWithTimestamp> mAdsCache = new ArrayList<NativeAdWithTimestamp>();
-
-        JBAdsCache(int max) {
-            maximumAdsCached = max;
-        }
-
-        public void add(NativeAd ad) {
-            synchronized (mAdsCache) {
-                mAdsCache.add(new NativeAdWithTimestamp(ad, System.currentTimeMillis()));
-            }
-        }
-
-        public NativeAd pop() {
-            synchronized (mAdsCache) {
-                if (mAdsCache.size() > 0) {
-                    NativeAdWithTimestamp ad = mAdsCache.get(0);
-
-                    mAdsCache.remove(0);
-
-                    long current = System.currentTimeMillis();
-                    if (current - ad.timestamp >= AdExpirationMillis) {
-                        return null;
-                    }
-
-                    return ad.ad;
-                }
-
-                return null;
-            }
-        }
-
-        public int size() {
-            synchronized (mAdsCache) {
-                return mAdsCache.size();
-            }
-        }
-
+    private void cacheNativeAd(NativeAd ad, String keyword) {
+        mCache.add(ad,keyword);
     }
 
-    private class NativeAdWithTimestamp {
-        NativeAd ad;
-        long timestamp;
+    private void fillCache(String keyword) {
+        int cacheSize = mCache.getKeywordCount(keyword);
 
-        NativeAdWithTimestamp(NativeAd a, long t) {
-            ad = a;
-            timestamp = t;
+        if (cacheSize < keywordPrefetchCount) {
+            loadAd(keyword,null);
         }
     }
 
-    private void cacheNativeAd(NativeAd ad) {
-        mCache.add(ad);
-    }
-
-    private void fillCache() {
-        int cacheSize = mCache.size();
-
-        if (cacheSize < maximumAdsCached) {
-            loadAd(null);
-        }
-    }
-
-    private void loadAd(final JBNativeAdsLoaderListener listener) {
+    private void loadAd(final String keyword, final JBNativeAdsLoaderListener listener) {
         if (listener != null) {
             mLoaderBuilder
                     .forAppInstallAd(new NativeAppInstallAd.OnAppInstallAdLoadedListener() {
                         @Override
                         public void onAppInstallAdLoaded(NativeAppInstallAd appInstallAd) {
                             // Show the app install ad.
-                            cacheNativeAd(appInstallAd);
+                            cacheNativeAd(appInstallAd, keyword);
                             listener.didLoadAd(appInstallAd);
 
-                            fillCache();
+                            fillCache(keyword);
                         }
                     })
                     .forContentAd(new NativeContentAd.OnContentAdLoadedListener() {
                         @Override
                         public void onContentAdLoaded(NativeContentAd contentAd) {
                             // Show the content ad.
-                            cacheNativeAd(contentAd);
+                            cacheNativeAd(contentAd, keyword);
                             listener.didLoadAd(contentAd);
 
-                            fillCache();
+                            fillCache(keyword);
                         }
                     });
         }
