@@ -30,10 +30,8 @@ public class JBNativeAds {
     public int maximumAdsCached = 4;
 
     private
-    @NonNull
     String mUnitId;
     private
-    @Nullable
     Context mContext;
 
     AdLoader.Builder mLoaderBuilder;
