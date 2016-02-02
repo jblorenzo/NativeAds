@@ -26,7 +26,7 @@ android {
 
 def siteUrl = 'https://github.com/jblorenzo/NativeAds'      // Homepage URL of the library
 def gitUrl = 'https://github.com/jblorenzo/NativeAds.git'   // Git repository URL
-group = "<maven group id>"                                        // Maven Group ID for the artifact
+group = "org.bennegeek"                                        // Maven Group ID for the artifact
 
 install {
     repositories.mavenInstaller {
